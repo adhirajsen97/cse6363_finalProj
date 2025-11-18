@@ -54,3 +54,15 @@ ml-nfl-drift/
    ```
 
 You can now develop data pipelines, feature engineering, model training, and drift evaluation using the provided skeleton.
+
+## Player-season dataset export
+Run the one-time exporter to create a canonical player-season CSV for 2015–2024:
+
+```bash
+python -m src.build_player_season_dataset \\
+  --output data/raw/player_season_2015_2024.csv
+```
+
+By default the script downloads weekly player stats from the public `nflfastR`
+releases. If you are offline, pass `--fallback-season-file fantasy_merged_7_17.csv`
+to reuse the bundled season-level data and still generate the canonical file.

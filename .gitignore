@@ -12,7 +12,10 @@ __pycache__/
 notebooks/.ipynb_checkpoints/
 
 # Data artifacts
-data/
+data/*
+!data/raw/
+data/raw/*
+!data/raw/player_season_2015_2024.csv
 
 # OS files
 .DS_Store
