@@ -47,6 +47,10 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     """
 
     cleaned = df.copy()
+    missing_strings = {"NaN", "nan", "NULL", "null", "None", "N/A", "n/a", ""}
+
+    # Normalize string-based missing markers to actual NA values across all columns
+    cleaned = cleaned.replace(missing_strings, pd.NA)
     allowed_positions = {"QB", "RB", "WR", "TE"}
 
     cleaned = cleaned[cleaned["position"].isin(allowed_positions)].copy()
@@ -55,6 +59,7 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
 
     numeric_cols = cleaned.select_dtypes(include=["number"]).columns
     for col in numeric_cols:
+        cleaned[col] = pd.to_numeric(cleaned[col], errors="coerce")
         if cleaned[col].isna().any():
             if cleaned[col].dropna().empty:
                 continue
@@ -62,6 +67,7 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
 
     categorical_cols = cleaned.select_dtypes(exclude=["number"]).columns
     for col in categorical_cols:
+        cleaned[col] = cleaned[col].replace(missing_strings, pd.NA)
         if cleaned[col].isna().any():
             mode_series = cleaned[col].mode()
             if not mode_series.empty:
