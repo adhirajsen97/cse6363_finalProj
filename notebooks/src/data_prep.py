@@ -47,6 +47,15 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     """
 
     cleaned = df.copy()
+    missing_strings = {"NaN", "nan", "NULL", "null", "None", "N/A", "n/a", ""}
+
+    # Drop sparsely populated demographic fields that offer little modeling value
+    drop_sparse: list[str] = [col for col in ["age", "years_experience"] if col in cleaned.columns]
+    if drop_sparse:
+        cleaned = cleaned.drop(columns=drop_sparse)
+
+    # Normalize string-based missing markers to actual NA values across all columns
+    cleaned = cleaned.replace(missing_strings, pd.NA)
     allowed_positions = {"QB", "RB", "WR", "TE"}
 
     cleaned = cleaned[cleaned["position"].isin(allowed_positions)].copy()
@@ -55,13 +64,20 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
 
     numeric_cols = cleaned.select_dtypes(include=["number"]).columns
     for col in numeric_cols:
+        cleaned[col] = pd.to_numeric(cleaned[col], errors="coerce")
+
+        # Drop numeric columns that are entirely missing after coercion to avoid
+        # downstream scaling warnings (e.g., StandardScaler divide-by-zero on NaNs)
+        if cleaned[col].dropna().empty:
+            cleaned = cleaned.drop(columns=[col])
+            continue
+
         if cleaned[col].isna().any():
-            if cleaned[col].dropna().empty:
-                continue
             cleaned[col] = cleaned[col].fillna(cleaned[col].median())
 
     categorical_cols = cleaned.select_dtypes(exclude=["number"]).columns
     for col in categorical_cols:
+        cleaned[col] = cleaned[col].replace(missing_strings, pd.NA)
         if cleaned[col].isna().any():
             mode_series = cleaned[col].mode()
             if not mode_series.empty:

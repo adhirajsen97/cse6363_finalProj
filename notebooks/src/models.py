@@ -51,6 +51,16 @@ def build_model(name: ModelName, random_state: int | None = 42):
     raise ValueError(f"Unsupported model name: {name}")
 
 
+def _ensure_finite_features(X: pd.DataFrame) -> pd.DataFrame:
+    """Return a copy of ``X`` with all non-finite values replaced by 0."""
+
+    X_clean = X.copy()
+    if not np.isfinite(X_clean.to_numpy()).all():
+        X_array_clean = np.nan_to_num(X_clean.to_numpy(), nan=0.0, posinf=0.0, neginf=0.0)
+        X_clean = pd.DataFrame(X_array_clean, columns=X_clean.columns, index=X_clean.index)
+    return X_clean
+
+
 def train_model(model, features: pd.DataFrame, target: pd.Series) -> None:
     """Fit the provided model to features and target."""
     model.fit(features, target)
@@ -109,6 +119,10 @@ def train_ridge(
         preprocessor=preprocessor,
         fit=False,
     )
+
+    # Safety net: ensure the model never receives NaN/Inf values
+    X_train = _ensure_finite_features(X_train)
+    X_val = _ensure_finite_features(X_val)
 
     alpha_values = np.array(alpha_grid, dtype=float)
 
