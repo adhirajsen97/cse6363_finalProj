@@ -9,6 +9,7 @@ import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
+from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 
@@ -68,8 +69,18 @@ class RobustStandardScaler(BaseEstimator, TransformerMixin):
         # Handle all non-finite values (NaN, Inf, -Inf) by converting to 0
         # This is safe for standardized features which are centered at 0
         X_scaled = np.nan_to_num(X_scaled, nan=0.0, posinf=0.0, neginf=0.0)
-        
+
         return X_scaled
+
+    def get_feature_names_out(self, input_features=None):
+        """Return unmodified input feature names for compatibility with ColumnTransformer."""
+
+        if input_features is None:
+            if self.n_features_in_ is None:
+                raise ValueError("The scaler has not been fitted yet and no input_features were provided.")
+            input_features = [f"x{i}" for i in range(self.n_features_in_)]
+
+        return np.asarray(input_features, dtype=object)
     
     def fit_transform(self, X, y=None):
         return self.fit(X, y).transform(X)
@@ -129,34 +140,32 @@ def build_feature_matrix(
     
     # Ensure no NaN values in input features before transformation
     # (clean_data should handle this, but this is a safety check)
-    numeric_input_cols = features.select_dtypes(include=["number", "bool"]).columns
-    if len(numeric_input_cols) > 0 and features[numeric_input_cols].isna().any().any():
-        # Fill NaN in numeric columns with median before transformation
-        for col in numeric_input_cols:
-            if features[col].isna().any():
-                median_val = features[col].median()
-                if pd.notna(median_val):
-                    features[col] = features[col].fillna(median_val)
-                else:
-                    # If all values are NaN, fill with 0
-                    features[col] = features[col].fillna(0)
-
     numeric_cols = features.select_dtypes(include=["number", "bool"]).columns.tolist()
     if position_column in numeric_cols:
         numeric_cols.remove(position_column)
 
+    for col in numeric_cols:
+        if features[col].isna().all():
+            features[col] = 0
+
     transformers: list[tuple[str, object, Sequence[str]]] = []
     if preprocessor is None:
         if numeric_cols:
-            num_transformer: object = RobustStandardScaler() if scale_numeric else "passthrough"
+            num_steps: list[tuple[str, object]] = [("imputer", SimpleImputer(strategy="median"))]
+            if scale_numeric:
+                num_steps.append(("scaler", RobustStandardScaler()))
+            num_transformer: object = Pipeline(num_steps) if len(num_steps) > 1 else num_steps[0][1]
             transformers.append(("numeric", num_transformer, numeric_cols))
-        transformers.append(
-            (
-                "position",
-                OneHotEncoder(handle_unknown="ignore", sparse_output=False),
-                [position_column],
-            )
+        cat_transformer: object = Pipeline(
+            [
+                ("imputer", SimpleImputer(strategy="most_frequent")),
+                (
+                    "encoder",
+                    OneHotEncoder(handle_unknown="ignore", sparse_output=False),
+                ),
+            ]
         )
+        transformers.append(("position", cat_transformer, [position_column]))
         preprocessor = ColumnTransformer(transformers=transformers, remainder="drop")
     elif not fit:
         # When we're reusing an existing preprocessor, we keep the provided `scale_numeric`
