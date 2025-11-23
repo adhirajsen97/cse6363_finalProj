@@ -49,6 +49,11 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     cleaned = df.copy()
     missing_strings = {"NaN", "nan", "NULL", "null", "None", "N/A", "n/a", ""}
 
+    # Drop sparsely populated demographic fields that offer little modeling value
+    drop_sparse: list[str] = [col for col in ["age", "years_experience"] if col in cleaned.columns]
+    if drop_sparse:
+        cleaned = cleaned.drop(columns=drop_sparse)
+
     # Normalize string-based missing markers to actual NA values across all columns
     cleaned = cleaned.replace(missing_strings, pd.NA)
     allowed_positions = {"QB", "RB", "WR", "TE"}
