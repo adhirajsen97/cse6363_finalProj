@@ -65,9 +65,14 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     numeric_cols = cleaned.select_dtypes(include=["number"]).columns
     for col in numeric_cols:
         cleaned[col] = pd.to_numeric(cleaned[col], errors="coerce")
+
+        # Drop numeric columns that are entirely missing after coercion to avoid
+        # downstream scaling warnings (e.g., StandardScaler divide-by-zero on NaNs)
+        if cleaned[col].dropna().empty:
+            cleaned = cleaned.drop(columns=[col])
+            continue
+
         if cleaned[col].isna().any():
-            if cleaned[col].dropna().empty:
-                continue
             cleaned[col] = cleaned[col].fillna(cleaned[col].median())
 
     categorical_cols = cleaned.select_dtypes(exclude=["number"]).columns
